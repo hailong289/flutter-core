@@ -20,7 +20,7 @@ class HomeScreen extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const Text('Sprint 1: Core Router + SQLite'),
+          const Text('Core app with router, SQLite & settings'),
           FButton(
             onPress: () => context.go(AppRoutes.items),
             suffix: const Icon(FLucideIcons.arrowRight),

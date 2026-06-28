@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
+import 'providers/theme_provider.dart';
 import 'router/app_router.dart';
 
 class Application extends ConsumerWidget {
@@ -10,15 +10,7 @@ class Application extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme =
-        const <TargetPlatform>{
-          .android,
-          .iOS,
-          .fuchsia,
-        }.contains(defaultTargetPlatform)
-        ? FThemes.neutral.dark.touch
-        : FThemes.neutral.dark.desktop;
-
+    final theme = ref.watch(fThemeDataProvider);
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

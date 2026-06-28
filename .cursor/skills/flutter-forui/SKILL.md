@@ -2,9 +2,9 @@
 name: flutter-forui
 description: >-
   Develop Flutter apps with ForUI in flutter_application_1. Use when adding
-  screens, widgets, themes, routing, SQLite/Drift, Riverpod, or features;
-  fixing Flutter/ForUI bugs; running builds; or when the user mentions ForUI,
-  go_router, Drift, Riverpod, or this Flutter project.
+  screens, widgets, themes, routing, SQLite/Drift, Riverpod, .env config, or
+  features; fixing Flutter/ForUI bugs; running builds; or when the user mentions
+  ForUI, go_router, Drift, Riverpod, dotenv, or this Flutter project.
 ---
 
 # Flutter + ForUI — flutter_application_1
@@ -16,139 +16,106 @@ description: >-
 | Package | `flutter_application_1` |
 | SDK | Dart `^3.12.2` |
 | UI | `forui` + `forui_assets` `^0.23.0` |
-| Router | `go_router` — `lib/router/app_router.dart` |
+| Router | `go_router` — redirect onboarding |
 | State | `flutter_riverpod` — `lib/providers/` |
-| Database | `drift` (SQLite) — `lib/core/database/` |
-| Entry | `lib/main.dart` → `lib/app.dart` (`Application`) |
-| Shell | `lib/shell/app_shell.dart` (bottom nav / sidebar) |
+| Database | `drift` schema v2 — `lib/core/database/` |
+| Config | `.env` via `flutter_dotenv` — `lib/core/config/` |
+| Domain | `lib/domain/` entities + repository interfaces |
+| Entry | `lib/main.dart` → `loadEnv()` → `Application` |
 
 ## Architecture
 
 ```
 lib/
-├── main.dart              # ProviderScope + runApp
-├── app.dart               # MaterialApp.router + ForUI wrappers
-├── router/                # GoRouter config + route constants
-├── shell/                 # AppShell (tab navigation)
-├── core/database/         # Drift AppDatabase + tables
-├── data/repositories/     # (use providers/repository_providers.dart)
-├── providers/             # Riverpod providers
-└── features/              # Feature screens by domain
-    ├── home/
-    ├── items/
-    └── settings/
+├── main.dart              # loadEnv + ProviderScope + registerPathProvider
+├── app.dart               # fThemeDataProvider + MaterialApp.router
+├── router/                # GoRouter + onboarding redirect
+├── shell/                 # AppShell
+├── core/
+│   ├── config/            # EnvConfig, loadEnv()
+│   ├── database/          # Drift — tables/, daos/, migrations/
+│   ├── preferences/       # SharedPreferences keys
+│   └── widgets/           # AsyncStateView
+├── domain/                # entities + repository interfaces
+├── data/repositories/     # ItemRepositoryImpl
+├── providers/             # env, theme, onboarding, DB, repos
+└── features/              # home, items, settings, onboarding, error
 ```
 
 ## App bootstrap
 
 ```dart
-// main.dart
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadEnv();
+  registerPathProvider();
   runApp(const ProviderScope(child: Application()));
 }
-
-// app.dart — ConsumerWidget
-MaterialApp.router(
-  routerConfig: ref.watch(routerProvider),
-  theme: theme.toApproximateMaterialTheme(),
-  builder: (_, child) => FTheme(
-    data: theme,
-    child: FToaster(child: FTooltipGroup(child: child!)),
-  ),
-);
 ```
 
-**Required wrappers:** `FTheme`, `FToaster`, `FTooltipGroup` — keep in `app.dart` builder, not per-route.
+Theme is dynamic via `fThemeDataProvider` (light/dark/system from Settings).
 
-## Routing (go_router)
-
-Route constants: `lib/router/routes.dart` (`AppRoutes.home`, `.items`, `.settings`).
+## Routing
 
 | Path | Screen |
 |------|--------|
-| `/` | `HomeScreen` |
-| `/items` | `ItemsScreen` |
-| `/items/:id` | `ItemDetailScreen` |
-| `/settings` | `SettingsScreen` |
+| `/onboarding` | First launch |
+| `/` | Home |
+| `/items` | Items list |
+| `/items/:id` | Item detail (edit) |
+| `/settings` | Settings |
+| `/error` | Error page |
 
-- Tab screens live inside `StatefulShellRoute.indexedStack` + `AppShell`.
-- Only `AppShell` owns `FScaffold` for tab routes; pushed screens (e.g. detail) may use their own `FScaffold` + `FHeader.nested`.
-- Navigate: `context.go(AppRoutes.items)`, `context.push(AppRoutes.itemDetail(id))`, `context.pop()`.
+Redirect: chưa onboarding → `/onboarding`. Dùng `refreshListenable` khi onboarding hoàn thành.
 
-## Database (Drift)
+## Environment
 
-- Schema: `lib/core/database/tables/items.dart`
-- DB class: `lib/core/database/app_database.dart` (+ generated `.g.dart`)
-- Access via `ItemRepository` → `itemRepositoryProvider` / `itemsStreamProvider`
-- Regenerate after schema changes:
+- `.env` — local only (gitignored)
+- `.env.example` — template committed
+- `envProvider` → `EnvConfig` (appEnv, apiBaseUrl, enableDebugLog)
+- Settings hiển thị env khi không phải production
 
-```bash
-dart run build_runner build
-```
-
-- Tests: use in-memory DB — `AppDatabase(NativeDatabase.memory())`
-
-## Riverpod patterns
+## Domain + Data
 
 ```dart
-// Override DB in widget tests
-ProviderScope(
-  overrides: [databaseProvider.overrideWithValue(db)],
-  child: const Application(),
+// domain/repositories/item_repository.dart — interface
+// data/repositories/item_repository_impl.dart — Drift mapping
+// domain/entities/item.dart — pure Dart entity (not drift.Item)
+```
+
+## AsyncStateView
+
+```dart
+AsyncStateView<List<Item>>(
+  value: ref.watch(itemsStreamProvider),
+  onRetry: () => ref.invalidate(itemsStreamProvider),
+  empty: () => EmptyWidget(),
+  data: (items) => ItemsList(items: items),
 )
-
-// Stream data from Drift
-final itemsStreamProvider = StreamProvider<List<Item>>((ref) {
-  return ref.watch(itemRepositoryProvider).watchAll();
-});
 ```
 
-## ForUI conventions
+## Database
 
-| Material / common | ForUI |
-|-------------------|-------|
-| `onTap` | `onPress` |
-| `Scaffold` | `FScaffold` (shell only for tabs) |
-| `Theme.of(context)` | `FTheme.of(context)` |
-| `Icons.*` | `FLucideIcons.*` |
-| Typography `xl2` | `typography.display.xl2` or `.body.sm` |
-| `showFToast(ctx, ...)` | `showFToast(context: ctx, title: ...)` |
-| `FTextField(controller:)` | `control: .managed(controller: ctrl)` |
-| `FSidebar(child:)` | `FSidebar(children: [...])` |
-| `FAlert(child:)` | `FAlert(title:, subtitle:)` |
+- Schema v2: `description`, `updatedAt` columns
+- `dart run build_runner build` after schema changes
+- Tests: `AppDatabase(NativeDatabase.memory())`
 
-### Theme
+## Settings features
 
-```dart
-FThemes.neutral.dark.touch   // mobile
-FThemes.neutral.dark.desktop // desktop
-```
-
-## Adding a new tab screen
-
-1. Create `lib/features/<name>/<name>_screen.dart`
-2. Add route constant in `routes.dart`
-3. Add `StatefulShellBranch` in `app_router.dart`
-4. Add nav item in `app_shell.dart` (bottom nav + sidebar)
+- Theme: system / light / dark (`themeModeProvider`)
+- DB path, item count, export `.sqlite`, clear all items
+- App version via `package_info_plus`
 
 ## Commands
 
 ```bash
+cp .env.example .env
 flutter pub get
+flutter run
 flutter analyze
 flutter test
-flutter run
-dart run build_runner build    # after Drift schema changes
-dart run forui theme create neutral
+dart run build_runner build
 ```
-
-## External docs
-
-- ForUI: https://forui.dev/docs
-- go_router: https://pub.dev/packages/go_router
-- Drift: https://drift.simonbinder.eu/docs/
-- Riverpod: https://riverpod.dev
 
 ## Additional resources
 

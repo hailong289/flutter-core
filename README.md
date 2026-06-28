@@ -1,10 +1,10 @@
 # flutter_application_1
 
-Flutter app với nền tảng **core** sẵn sàng mở rộng: điều hướng đa màn hình, lưu trữ SQLite cục bộ, và UI ForUI.
+Flutter app với nền tảng **core** sẵn sàng mở rộng: điều hướng đa màn hình, lưu trữ SQLite cục bộ, cấu hình `.env`, và UI ForUI.
 
 ## Tổng quan
 
-Ứng dụng được xây dựng theo kiến trúc phân lớp, tách biệt UI, routing, state management và data layer. Sprint 1 đã hoàn thành phần nền — router, database, shell navigation — để các feature tiếp theo có thể phát triển độc lập mà không phải setup lại từ đầu.
+Ứng dụng được xây dựng theo kiến trúc phân lớp: UI → Router → Riverpod → Domain → Data (Drift). Sprint 1 hoàn thành router + SQLite; Sprint 2 thêm domain layer, env config, settings, onboarding và migration DB v2.
 
 ## Tech stack
 
@@ -15,94 +15,97 @@ Flutter app với nền tảng **core** sẵn sàng mở rộng: điều hướn
 | Routing | [go_router](https://pub.dev/packages/go_router) |
 | State | [Riverpod](https://riverpod.dev) |
 | Database | [Drift](https://drift.simonbinder.eu) (SQLite) |
+| Config | [flutter_dotenv](https://pub.dev/packages/flutter_dotenv) |
 
 ## Kiến trúc
 
 ```
 UI (Screens + AppShell)
         ↓
-   go_router
+   go_router (+ onboarding redirect)
         ↓
    Riverpod Providers
         ↓
-   Repositories
+   Domain (entities + repository interfaces)
         ↓
-   Drift / SQLite
+   Data (repository impl + Drift)
 ```
-
-**Luồng khởi động:** `main.dart` → `ProviderScope` → `Application` (`MaterialApp.router`) → `GoRouter` → màn hình trong `AppShell`.
 
 ## Cấu trúc thư mục
 
 ```
 lib/
-├── main.dart                 # Entry point, đăng ký plugin & ProviderScope
-├── app.dart                  # MaterialApp.router + ForUI theme wrappers
-├── router/                   # GoRouter config & route constants
-├── shell/                    # AppShell — bottom nav (mobile) / sidebar (desktop)
+├── main.dart                 # loadEnv + ProviderScope
+├── app.dart                  # MaterialApp.router + dynamic FTheme
+├── router/                   # GoRouter + redirect
+├── shell/                    # AppShell
 ├── core/
-│   ├── database/             # Drift schema, connection, generated code
-│   └── platform/             # Đăng ký platform plugins
-├── providers/                # Riverpod providers (DB, repositories)
-└── features/                 # Màn hình theo feature
-    ├── home/
-    ├── items/                # Demo CRUD SQLite
-    └── settings/
+│   ├── config/               # .env / EnvConfig
+│   ├── database/             # Drift schema v2
+│   ├── preferences/          # SharedPreferences keys
+│   └── widgets/              # AsyncStateView
+├── domain/                   # entities + repository interfaces
+├── data/repositories/        # repository implementations
+├── providers/                # Riverpod
+└── features/
+    ├── home/, items/, settings/
+    ├── onboarding/
+    └── error/
 ```
 
 ## Routing
 
-| Path | Màn hình | Mô tả |
-|------|----------|-------|
-| `/` | Home | Trang chào mừng |
-| `/items` | Items | Danh sách item từ SQLite |
-| `/items/:id` | Item Detail | Chi tiết item (push navigation) |
-| `/settings` | Settings | Placeholder |
+| Path | Màn hình |
+|------|----------|
+| `/onboarding` | Onboarding (lần đầu mở app) |
+| `/` | Home |
+| `/items` | Items list |
+| `/items/:id` | Item detail (edit) |
+| `/settings` | Settings |
+| `/error` | Error fallback |
 
-Ba tab chính (`/`, `/items`, `/settings`) nằm trong `StatefulShellRoute` — chuyển tab giữ nguyên state từng màn hình.
+## Environment (`.env`)
+
+Copy `.env.example` → `.env` trước khi chạy:
+
+```bash
+cp .env.example .env
+```
+
+```env
+APP_ENV=development
+API_BASE_URL=https://api.example.com
+ENABLE_DEBUG_LOG=true
+```
+
+Sau khi sửa `.env`, cần **full restart** (không hot reload).
 
 ## Database
 
-- **Engine:** SQLite qua Drift
-- **File:** `app.sqlite` trong thư mục documents của app
-- **Bảng mẫu:** `items` (id, title, createdAt) — thay bằng domain thật ở sprint sau
-- **Truy cập:** `ItemRepository` → `itemsStreamProvider` (reactive stream)
-
-Sau khi thay đổi schema, chạy code generation:
+- Schema **v2**: `items` (id, title, description, createdAt, updatedAt)
+- Migration tự động từ v1
+- Export / clear data trong Settings
 
 ```bash
-dart run build_runner build
+dart run build_runner build   # sau khi đổi schema
 ```
 
 ## Chạy & phát triển
 
 ```bash
-# Cài dependencies
+cp .env.example .env
 flutter pub get
-
-# Chạy app (dừng app cũ trước, tránh hot reload sau khi thêm plugin)
 flutter run
-
-# Phân tích & test
 flutter analyze
 flutter test
-
-# Chạy trên desktop
-flutter run -d macos
 ```
-
-> **Lưu ý:** Nếu gặp lỗi `MissingPluginException` với `path_provider`, dừng app hoàn toàn và `flutter run` lại (không dùng hot reload). App đã đăng ký plugin trong `main()` và có fallback path.
-
-## Màn hình hiện tại
-
-- **Home** — welcome screen, điều hướng sang Items
-- **Items** — thêm / xóa / xem danh sách item (persist qua SQLite)
-- **Item Detail** — hiển thị chi tiết một record
-- **Settings** — placeholder cho sprint tiếp theo
 
 ## Kế hoạch sprint
 
-Chi tiết Sprint 1 (Core Router + SQLite): [`docs/plans/sprint-1-core-router-sqlite.md`](docs/plans/sprint-1-core-router-sqlite.md)
+| Sprint | Nội dung | Trạng thái |
+|--------|----------|------------|
+| [Sprint 1](docs/plans/sprint-1-core-router-sqlite.md) | Core Router + SQLite | Hoàn thành |
+| [Sprint 2](docs/plans/sprint-2-domain-ux-settings.md) | Domain, UX, Settings, .env, Migration | Hoàn thành |
 
 ## Tài liệu tham khảo
 

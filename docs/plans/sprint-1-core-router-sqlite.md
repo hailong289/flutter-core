@@ -289,9 +289,7 @@ Không làm auth, sync, hay business logic phức tạp trong sprint này.
 - [x] `flutter analyze` + `flutter test` pass
 - [x] Cấu trúc `lib/` sẵn sàng cho sprint 2 (feature thật)
 
-## Sprint 2 (preview — ngoài scope)
+## Sprint 2 (preview — xem chi tiết)
 
-- Domain tables thật (thay `items` mẫu)
-- Error handling chuẩn (`AsyncValue` UI pattern)
-- `go_router` redirect (onboarding, auth nếu cần)
-- Export/import DB, backup
+→ [`docs/plans/sprint-2-domain-ux-settings.md`](sprint-2-domain-ux-settings.md)
+

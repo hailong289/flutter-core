@@ -57,3 +57,17 @@ Directory _fallbackDatabaseDirectory() {
   dir.createSync(recursive: true);
   return dir;
 }
+
+String? _cachedDatabaseFilePath;
+
+void cacheDatabaseFilePath(String path) => _cachedDatabaseFilePath = path;
+
+String? get cachedDatabaseFilePath => _cachedDatabaseFilePath;
+
+Future<String> resolveDatabaseFilePath() async {
+  if (_cachedDatabaseFilePath != null) {
+    return _cachedDatabaseFilePath!;
+  }
+  final dir = await resolveDatabaseDirectory();
+  return p.join(dir.path, 'app.sqlite');
+}

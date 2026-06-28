@@ -5,5 +5,9 @@ class Items extends Table {
 
   TextColumn get title => text().withLength(min: 1, max: 200)();
 
+  TextColumn get description => text().nullable()();
+
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
